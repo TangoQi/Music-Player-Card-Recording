@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>情侣头像批量工厂</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">GPT Image Batch Studio</p>
+            <h1>情侣头像批量工厂</h1>
+            <p class="subtitle">上传一组参考图，批量重构成可直接裁剪的横向情侣头像。</p>
+          </div>
+          <div class="status" id="apiStatus">检查 API Key...</div>
+        </header>
+
+        <div class="control-grid">
+          <section class="panel reference-panel">
+            <div class="panel-title">
+              <span>1</span>
+              <h2>参考图</h2>
+            </div>
+
+            <label>
+              上传参考图片
+              <input id="referenceImage" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+            </label>
+            <div id="referencePreview" class="reference-preview">
+              <span>可一次选择多张图片。生成时默认使用第一张作为参考图。</span>
+            </div>
+          </section>
+
+          <section class="panel setup-panel">
+            <div class="panel-title">
+              <span>2</span>
+              <h2>批量设定</h2>
+            </div>
+
+            <label>
+              主题关键词
+              <input id="theme" value="参考图延展、情侣头像、专门设计、可真实使用" />
+            </label>
+
+            <label>
+              左右气质，一行一组
+              <textarea id="couples" rows="5">柔和/可爱的一方 | 克制/简洁或略偏男性气质的一方</textarea>
+            </label>
+
+            <div class="inline-fields">
+              <label>
+                风格
+                <select id="style">
+                  <option value="日系清透动漫头像，柔和线条，细腻皮肤光影">日系清透</option>
+                  <option value="韩系半写实头像，时尚杂志质感，柔焦灯光">韩系半写实</option>
+                  <option value="像素游戏头像，精致像素艺术，强识别轮廓">像素游戏</option>
+                  <option value="黏土风 3D 头像，柔软材质，可爱但不幼稚">黏土 3D</option>
+                  <option value="国风插画头像，克制留白，现代东方配色">现代国风</option>
+                </select>
+              </label>
+
+              <label>
+                每组张数
+                <input id="variants" type="number" min="1" max="6" value="2" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-title">
+              <span>3</span>
+              <h2>生成参数</h2>
+            </div>
+
+            <label>
+              OpenAI API Key
+              <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+            </label>
+
+            <div class="inline-fields">
+              <label>
+                模型
+                <input id="model" value="gpt-image-1.5" />
+              </label>
+              <label>
+                尺寸
+                <select id="size">
+                  <option>1536x1024</option>
+                  <option>1024x1024</option>
+                  <option>1024x1536</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="inline-fields">
+              <label>
+                质量
+                <select id="quality">
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="low">low</option>
+                  <option value="auto">auto</option>
+                </select>
+              </label>
+              <label>
+                格式
+                <select id="format">
+                  <option value="png">png</option>
+                  <option value="webp">webp</option>
+                  <option value="jpeg">jpeg</option>
+                </select>
+              </label>
+            </div>
+
+            <details class="advanced">
+              <summary>结构提示词</summary>
+              <label>
+                统一约束
+                <textarea id="constraints" rows="9">结构要求（必须满足）：整体为横向 2:1 构图；左右分别对应两个 1:1 区域，可被用户直接裁剪为两个头像；每一侧在单独裁剪后必须构图完整、视觉成立。
+角色要求：左右两侧分别代表情侣中的两方；两者在气质上需要有明显区分，例如一方更柔和/可爱，另一方更克制/简洁或略偏男性气质；不要让两侧呈现相同性别气质，避免都像女生。
+关系与设计要求：两侧必须存在视觉或情绪上的对应关系，例如视线方向、身体朝向、动作暗示或情绪呼应；合在一起时要有互动感或默契感；分开看各自成立，合在一起有额外意义。
+创作自由：不要依赖固定套路，如强制粉色/蓝色、蝴蝶结/领结；呼应方式可以来自任何维度，包括构图、材质、动作、氛围等；鼓励有巧思，而不是简单同款换色。
+目标效果：让人一眼觉得这是专门设计的一对情侣头像，适合真实用户裁剪并使用。
+不要文字、水印、logo、畸形五官、低清晰度、杂乱背景。</textarea>
+              </label>
+            </details>
+
+            <div class="actions">
+              <button id="previewBtn" class="secondary">刷新展示</button>
+              <button id="generateBtn">开始批量生成</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="image-board">
+          <div class="board-header">
+            <h2>图片展示</h2>
+            <span id="imageBoardStatus">等待上传参考图</span>
+          </div>
+          <div id="imageBoard" class="image-board-grid"></div>
+        </section>
+
+        <section class="gallery">
+          <div class="board-header">
+            <h2>生成结果</h2>
+            <span id="runSummary">尚未生成</span>
+          </div>
+          <div id="gallery" class="gallery-grid"></div>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
