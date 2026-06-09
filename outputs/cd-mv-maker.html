@@ -344,6 +344,8 @@
         <button id="splitLyricsBtn">拆成时间格</button>
         <button id="autoTimeBtn">按音频铺时间</button>
       </div>
+      <label for="subtitleFile">剪映字幕文件</label>
+      <input id="subtitleFile" type="file" accept=".srt,.vtt,.lrc,.txt,text/*">
       <div id="lyricGrid" class="lyric-grid"></div>
 
       <label for="lyricsInput">LRC 源码</label>
@@ -393,6 +395,7 @@
     const sceneTone = document.getElementById("sceneTone");
     const plainLyricsInput = document.getElementById("plainLyricsInput");
     const lyricsInput = document.getElementById("lyricsInput");
+    const subtitleFile = document.getElementById("subtitleFile");
     const lyricGrid = document.getElementById("lyricGrid");
     const statusEl = document.getElementById("status");
     const downloadLink = document.getElementById("downloadLink");
@@ -566,6 +569,41 @@
     function rowsFromLrc(raw) {
       const parsed = parseLyrics(raw, audio.duration);
       return parsed.map(row => ({ time: row.time, text: row.text }));
+    }
+
+    function parseSubtitleTime(value) {
+      const clean = value.trim().replace(",", ".");
+      const parts = clean.split(":").map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return Number(clean) || 0;
+    }
+
+    function rowsFromSrtOrVtt(raw) {
+      const normalized = raw.replace(/\r/g, "").replace(/^WEBVTT.*\n+/i, "");
+      const blocks = normalized.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+      const rows = [];
+
+      for (const block of blocks) {
+        const lines = block.split("\n").map(line => line.trim()).filter(Boolean);
+        const timeIndex = lines.findIndex(line => line.includes("-->"));
+        if (timeIndex === -1) continue;
+        const start = lines[timeIndex].split("-->")[0].trim();
+        const text = lines
+          .slice(timeIndex + 1)
+          .join(" ")
+          .replace(/<[^>]+>/g, "")
+          .trim();
+        if (text) rows.push({ time: parseSubtitleTime(start), text });
+      }
+
+      return rows.sort((a, b) => a.time - b.time);
+    }
+
+    function rowsFromSubtitle(raw) {
+      const hasSrtTiming = /-->\s*\d{1,2}:\d{2}/.test(raw);
+      if (hasSrtTiming) return rowsFromSrtOrVtt(raw);
+      return rowsFromLrc(raw);
     }
 
     function renderLyricGrid() {
@@ -1370,6 +1408,21 @@
       plainLyricsInput.value = lyricRows.map(row => row.text).join("\n");
       renderLyricGrid();
       renderFrame(audio.currentTime || 0);
+    });
+
+    subtitleFile.addEventListener("change", async () => {
+      const file = subtitleFile.files[0];
+      if (!file) return;
+      const raw = await file.text();
+      const rows = rowsFromSubtitle(raw);
+      if (!rows.length) {
+        setStatus("没有识别到字幕时间轴。请导入剪映导出的 SRT/VTT/LRC 文件。");
+        return;
+      }
+      lyricRows = rows;
+      plainLyricsInput.value = lyricRows.map(row => row.text).join("\n");
+      syncLyricsFromRows();
+      setStatus(`已导入 ${rows.length} 条字幕时间轴。`);
     });
 
     [
