@@ -365,7 +365,7 @@
       </div>
 
       <div id="status" class="status">可以先直接预览示例画面；上传音频后会按歌词时间同步。</div>
-      <a id="downloadLink" class="download" download="tang-ai-note-player.webm">下载视频</a>
+      <a id="downloadLink" class="download" download="tang-ai-note-player.mp4">下载视频</a>
       <p class="hint">支持 LRC 时间戳。普通逐行歌词会按音频长度平均分配。导出为 WebM，可后续转 MP4。</p>
     </aside>
 
@@ -1253,13 +1253,23 @@
       rafId = null;
     }
 
-    function recorderMimeType() {
+    function recorderFormat() {
       const types = [
+        { mime: "video/mp4;codecs=avc1.42E01E,mp4a.40.2", ext: "mp4", label: "MP4" },
+        { mime: "video/mp4;codecs=avc1.640028,mp4a.40.2", ext: "mp4", label: "MP4" },
+        { mime: "video/mp4;codecs=h264,aac", ext: "mp4", label: "MP4" },
+        { mime: "video/mp4", ext: "mp4", label: "MP4" },
         "video/webm;codecs=vp9,opus",
         "video/webm;codecs=vp8,opus",
         "video/webm"
       ];
-      return types.find(type => MediaRecorder.isTypeSupported(type)) || "";
+      for (const item of types) {
+        const option = typeof item === "string"
+          ? { mime: item, ext: "webm", label: "WebM" }
+          : item;
+        if (MediaRecorder.isTypeSupported(option.mime)) return option;
+      }
+      return { mime: "", ext: "webm", label: "WebM" };
     }
 
     function startPreview() {
@@ -1313,21 +1323,21 @@
           canvasStream.addTrack(track);
         }
 
-        const mimeType = recorderMimeType();
-        recorder = mimeType ? new MediaRecorder(canvasStream, { mimeType }) : new MediaRecorder(canvasStream);
+        const format = recorderFormat();
+        recorder = format.mime ? new MediaRecorder(canvasStream, { mimeType: format.mime }) : new MediaRecorder(canvasStream);
         recorder.ondataavailable = event => {
           if (event.data.size > 0) recordedChunks.push(event.data);
         };
         recorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const blob = new Blob(recordedChunks, { type: format.mime || "video/webm" });
           const url = URL.createObjectURL(blob);
           const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
           downloadLink.href = url;
-          downloadLink.download = `tang-ai-note-player-${stamp}.webm`;
+          downloadLink.download = `tang-ai-note-player-${stamp}.${format.ext}`;
           downloadLink.textContent = `下载 ${downloadLink.download}`;
           downloadLink.style.display = "inline-block";
           recordBtn.textContent = "录制导出";
-          setStatus("录制完成，已触发下载；如果没有自动下载，请点击下面的下载链接。");
+          setStatus(`录制完成，已导出 ${format.label}；如果没有自动下载，请点击下面的下载链接。`);
           downloadLink.click();
         };
 
@@ -1337,7 +1347,7 @@
         await audio.play();
         recorder.start(1000);
         recordBtn.textContent = "结束录制";
-        setStatus("正在录制；歌曲播完会自动下载，也可以再次点击结束录制。");
+        setStatus(`正在录制 ${format.label}；歌曲播完会自动下载，也可以再次点击结束录制。`);
         audio.onended = finishRecording;
       } catch (error) {
         recordBtn.textContent = "录制导出";
