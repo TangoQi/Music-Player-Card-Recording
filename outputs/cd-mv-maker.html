@@ -1,0 +1,1403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>汤大侠 AI 音符播放器</title>
+  <style>
+    :root {
+      --bg: #111414;
+      --panel: #191d1d;
+      --panel-2: #202625;
+      --line: #3b4542;
+      --text: #f5efe2;
+      --muted: #aeb9b2;
+      --gold: #e8c76a;
+      --jade: #83c7ad;
+      --ink: #101414;
+      --preview-width: 460px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(340px, 430px) minmax(390px, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      padding: 22px;
+      overflow: auto;
+      background: linear-gradient(180deg, var(--panel), #121515);
+      border-right: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    label {
+      display: block;
+      margin: 15px 0 7px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input,
+    textarea,
+    select,
+    button {
+      font: inherit;
+    }
+
+    input[type="text"],
+    input[type="file"],
+    textarea,
+    select {
+      width: 100%;
+      color: var(--text);
+      background: #101313;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 190px;
+      resize: vertical;
+      line-height: 1.65;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button {
+      min-height: 42px;
+      color: var(--text);
+      background: #28312f;
+      border: 1px solid #43504c;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      color: #171307;
+      background: var(--gold);
+      border-color: #f5d979;
+      font-weight: 800;
+    }
+
+    button.good {
+      color: #071613;
+      background: var(--jade);
+      border-color: #96d8c2;
+      font-weight: 800;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .download {
+      display: none;
+      margin-top: 10px;
+      color: var(--gold);
+    }
+
+    .stage-shell {
+      display: grid;
+      place-items: center;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px;
+      overflow: auto;
+      background:
+        linear-gradient(135deg, rgba(131, 199, 173, .10), transparent 35%),
+        linear-gradient(315deg, rgba(232, 199, 106, .10), transparent 36%),
+        #0b0e0d;
+    }
+
+    canvas {
+      width: var(--preview-width);
+      aspect-ratio: 9 / 16;
+      background: #101414;
+      border: 1px solid rgba(245, 239, 226, .14);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .42);
+      flex: 0 0 auto;
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .lyric-tools {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .lyric-grid {
+      display: grid;
+      gap: 7px;
+      max-height: 260px;
+      margin-top: 10px;
+      padding-right: 4px;
+      overflow: auto;
+    }
+
+    .lyric-row {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .lyric-row input {
+      min-width: 0;
+      color: var(--text);
+      background: #101313;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 9px;
+      outline: none;
+    }
+
+    .lyric-row input[data-field="time"] {
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .lrc-source {
+      min-height: 96px;
+      font-size: 12px;
+      opacity: .72;
+    }
+
+    @media (max-width: 880px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .stage-shell {
+        position: static;
+        height: auto;
+        min-height: 70vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <aside>
+      <h1>汤大侠 AI 音符播放器</h1>
+      <p class="sub">日系漫画感 + 国风故事感 + 手机播放器 UI + 大字歌词海报。</p>
+
+      <label for="audioFile">音频</label>
+      <input id="audioFile" type="file" accept="audio/*">
+
+      <div class="grid-2">
+        <div>
+          <label for="titleInput">歌名</label>
+          <input id="titleInput" type="text" value="少女和小和尚">
+        </div>
+        <div>
+          <label for="artistInput">制作</label>
+          <input id="artistInput" type="text" value="汤大侠 / Suno">
+        </div>
+      </div>
+
+      <label for="coverFile">封面图，可选</label>
+      <input id="coverFile" type="file" accept="image/*">
+
+      <div class="grid-2">
+        <div>
+          <label for="visualStyle">视频风格</label>
+          <select id="visualStyle">
+            <option value="music">音乐软件播放页</option>
+            <option value="poster">大字歌词海报</option>
+            <option value="card">歌词卡片播放器</option>
+          </select>
+        </div>
+        <div>
+          <label for="coverMode">封面形态</label>
+          <select id="coverMode">
+            <option value="square">方形静止封面</option>
+            <option value="disc">圆形旋转封面</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="previewSizeSelect">预览大小</label>
+      <select id="previewSizeSelect">
+        <option value="360">小号 360px</option>
+        <option value="420">中号 420px</option>
+        <option value="460" selected>标准 460px</option>
+        <option value="540">大号 540px</option>
+        <option value="620">超大 620px</option>
+      </select>
+
+      <div class="grid-2">
+        <div>
+          <label for="fontSelect">歌词字体</label>
+          <select id="fontSelect">
+            <option value="yahei">雅黑清晰</option>
+            <option value="song">宋体书卷</option>
+            <option value="kai">楷体国风</option>
+            <option value="hei">黑体海报</option>
+            <option value="round">圆体温柔</option>
+          </select>
+        </div>
+        <div>
+          <label for="sceneTone">场景氛围</label>
+          <select id="sceneTone">
+            <option value="alley">青石小巷</option>
+            <option value="moon">月光山门</option>
+            <option value="lantern">灯笼暖夜</option>
+            <option value="morning">晨光山道</option>
+            <option value="peach">春日桃花</option>
+            <option value="river">晴空水岸</option>
+            <option value="field">金色麦田</option>
+            <option value="neon">雨后霓虹</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <label for="colorSelect">歌词颜色</label>
+          <select id="colorSelect">
+            <option value="cream">米白暖光</option>
+            <option value="white">纯白清晰</option>
+            <option value="ink">墨黑深色</option>
+            <option value="gold">金色高光</option>
+            <option value="jade">青绿国风</option>
+            <option value="peach">桃粉温柔</option>
+          </select>
+        </div>
+        <div>
+          <label for="bottomAnimSelect">底部动画</label>
+          <select id="bottomAnimSelect">
+            <option value="wave">音频波形</option>
+            <option value="notes">音符跳动</option>
+            <option value="particles">光点流动</option>
+            <option value="mountain">山水线条</option>
+            <option value="lanterns">灯笼闪烁</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="plainLyricsInput">歌词时间格</label>
+      <textarea id="plainLyricsInput">少女遇上小和尚
+偏偏撞进时光
+她守着小村庄
+一盏灯照过篱墙
+风吹过青石小巷
+月光落在山门上
+若这就是人间一趟
+我愿慢慢把你唱</textarea>
+      <div class="lyric-tools">
+        <button id="splitLyricsBtn">拆成时间格</button>
+        <button id="autoTimeBtn">按音频铺时间</button>
+      </div>
+      <div id="lyricGrid" class="lyric-grid"></div>
+
+      <label for="lyricsInput">LRC 源码</label>
+      <textarea id="lyricsInput" class="lrc-source">[00:00.00]少女遇上小和尚
+[00:04.20]偏偏撞进时光
+[00:08.40]她守着小村庄
+[00:12.60]一盏灯照过篱墙
+[00:16.80]风吹过青石小巷
+[00:21.00]月光落在山门上
+[00:25.20]若这就是人间一趟
+[00:29.40]我愿慢慢把你唱</textarea>
+
+      <div class="actions">
+        <button id="previewBtn" class="primary">预览播放</button>
+        <button id="stopBtn">停止</button>
+        <button id="recordBtn" class="good">录制导出</button>
+      </div>
+
+      <div id="status" class="status">可以先直接预览示例画面；上传音频后会按歌词时间同步。</div>
+      <a id="downloadLink" class="download" download="tang-ai-note-player.webm">下载视频</a>
+      <p class="hint">支持 LRC 时间戳。普通逐行歌词会按音频长度平均分配。导出为 WebM，可后续转 MP4。</p>
+    </aside>
+
+    <section class="stage-shell">
+      <canvas id="stage" width="1080" height="1920"></canvas>
+    </section>
+  </main>
+
+  <audio id="audio" crossorigin="anonymous"></audio>
+
+  <script>
+    const W = 1080;
+    const H = 1920;
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d");
+    const audio = document.getElementById("audio");
+    const audioFile = document.getElementById("audioFile");
+    const coverFile = document.getElementById("coverFile");
+    const titleInput = document.getElementById("titleInput");
+    const artistInput = document.getElementById("artistInput");
+    const visualStyle = document.getElementById("visualStyle");
+    const coverMode = document.getElementById("coverMode");
+    const previewSizeSelect = document.getElementById("previewSizeSelect");
+    const fontSelect = document.getElementById("fontSelect");
+    const colorSelect = document.getElementById("colorSelect");
+    const bottomAnimSelect = document.getElementById("bottomAnimSelect");
+    const sceneTone = document.getElementById("sceneTone");
+    const plainLyricsInput = document.getElementById("plainLyricsInput");
+    const lyricsInput = document.getElementById("lyricsInput");
+    const lyricGrid = document.getElementById("lyricGrid");
+    const statusEl = document.getElementById("status");
+    const downloadLink = document.getElementById("downloadLink");
+    const recordBtn = document.getElementById("recordBtn");
+
+    let coverImage = null;
+    let generatedCover = null;
+    let rafId = null;
+    let recorder = null;
+    let recordedChunks = [];
+    let audioContext = null;
+    let audioDestination = null;
+    let audioSourceNode = null;
+    let lyricRows = [];
+
+    const scenePalettes = {
+      alley: {
+        sky: ["#172825", "#39534c", "#101616"],
+        warm: "#e7b35d",
+        jade: "#89c8ae",
+        paper: "#f4ead8",
+        shadow: "rgba(7, 13, 12, .62)"
+      },
+      moon: {
+        sky: ["#121a28", "#33445f", "#0b0f18"],
+        warm: "#d9c484",
+        jade: "#9ec4cf",
+        paper: "#f2efe6",
+        shadow: "rgba(7, 9, 16, .64)"
+      },
+      lantern: {
+        sky: ["#241713", "#51332c", "#100d0b"],
+        warm: "#f0b45f",
+        jade: "#9fc3a4",
+        paper: "#f6ead5",
+        shadow: "rgba(20, 8, 5, .60)"
+      },
+      morning: {
+        sky: ["#d9eee7", "#95cdbd", "#4e7f74"],
+        warm: "#f2c779",
+        jade: "#6db39e",
+        paper: "#fff4df",
+        shadow: "rgba(31, 63, 56, .30)"
+      },
+      peach: {
+        sky: ["#fde7dd", "#efb8b8", "#8fbf9a"],
+        warm: "#f4a56d",
+        jade: "#7dbb92",
+        paper: "#fff1e8",
+        shadow: "rgba(87, 42, 45, .28)"
+      },
+      river: {
+        sky: ["#dff3ff", "#8bc8df", "#4f8e9d"],
+        warm: "#f3d38a",
+        jade: "#65b8b5",
+        paper: "#f7fbef",
+        shadow: "rgba(23, 68, 80, .28)"
+      },
+      field: {
+        sky: ["#fff0bd", "#d9b36a", "#6f9a75"],
+        warm: "#f0b84e",
+        jade: "#86ad72",
+        paper: "#fff5d6",
+        shadow: "rgba(89, 62, 21, .30)"
+      },
+      neon: {
+        sky: ["#d5ecf2", "#8a95d6", "#34485f"],
+        warm: "#f4a36f",
+        jade: "#68d1c4",
+        paper: "#f5f4ff",
+        shadow: "rgba(28, 35, 66, .38)"
+      }
+    };
+
+    const lyricFontStacks = {
+      yahei: '"Microsoft YaHei", "Segoe UI", sans-serif',
+      song: '"SimSun", "Songti SC", "Noto Serif CJK SC", serif',
+      kai: '"KaiTi", "STKaiti", "Kaiti SC", serif',
+      hei: '"SimHei", "Microsoft YaHei", "Arial Black", sans-serif',
+      round: '"Microsoft YaHei UI", "Yuanti SC", "Segoe UI", sans-serif'
+    };
+
+    function lyricFont(weight, size) {
+      const stack = lyricFontStacks[fontSelect.value] || lyricFontStacks.yahei;
+      return `${weight} ${size}px ${stack}`;
+    }
+
+    const lyricColorThemes = {
+      cream: {
+        main: "#f6ead5",
+        sub: "#d7d4cb",
+        meta: "rgba(246,234,213,.70)",
+        accent: "#e8c76a",
+        glow: "rgba(232,199,106,.72)"
+      },
+      white: {
+        main: "#ffffff",
+        sub: "#d8dde0",
+        meta: "rgba(255,255,255,.72)",
+        accent: "#ffffff",
+        glow: "rgba(255,255,255,.56)"
+      },
+      ink: {
+        main: "#111a17",
+        sub: "#43514b",
+        meta: "rgba(24,35,31,.72)",
+        accent: "#293a34",
+        glow: "rgba(126,94,32,.34)"
+      },
+      gold: {
+        main: "#ffe29a",
+        sub: "#d7bd7a",
+        meta: "rgba(255,226,154,.72)",
+        accent: "#f0bd4f",
+        glow: "rgba(240,189,79,.70)"
+      },
+      jade: {
+        main: "#b8f2d8",
+        sub: "#8fcbb2",
+        meta: "rgba(184,242,216,.72)",
+        accent: "#73d5b2",
+        glow: "rgba(115,213,178,.62)"
+      },
+      peach: {
+        main: "#ffd8cf",
+        sub: "#d9aaa2",
+        meta: "rgba(255,216,207,.72)",
+        accent: "#f2a18d",
+        glow: "rgba(242,161,141,.62)"
+      }
+    };
+
+    function lyricColors(tone = "light") {
+      if (tone === "dark") return lyricColorThemes.ink;
+      return lyricColorThemes[colorSelect.value] || lyricColorThemes.cream;
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function updatePreviewSize() {
+      document.documentElement.style.setProperty("--preview-width", `${previewSizeSelect.value}px`);
+    }
+
+    function secondsToStamp(seconds) {
+      const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+      const mins = Math.floor(safe / 60);
+      const secs = Math.floor(safe % 60);
+      const centis = Math.floor((safe - Math.floor(safe)) * 100);
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(centis).padStart(2, "0")}`;
+    }
+
+    function parseTimeInput(value) {
+      const clean = value.trim();
+      const match = clean.match(/^(\d{1,2}):(\d{2})(?:[.:](\d{1,2}))?$/);
+      if (!match) return 0;
+      const mins = Number(match[1]);
+      const secs = Number(match[2]);
+      const frac = match[3] ? Number("0." + match[3].padEnd(2, "0")) : 0;
+      return mins * 60 + secs + frac;
+    }
+
+    function rowsToLrc(rows) {
+      return rows
+        .filter(row => row.text.trim())
+        .map(row => `[${secondsToStamp(row.time)}]${row.text.trim()}`)
+        .join("\n");
+    }
+
+    function rowsFromLrc(raw) {
+      const parsed = parseLyrics(raw, audio.duration);
+      return parsed.map(row => ({ time: row.time, text: row.text }));
+    }
+
+    function renderLyricGrid() {
+      lyricGrid.innerHTML = "";
+      lyricRows.forEach((row, index) => {
+        const item = document.createElement("div");
+        item.className = "lyric-row";
+        const safeText = row.text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+        item.innerHTML = `
+          <input data-index="${index}" data-field="time" value="${secondsToStamp(row.time)}" aria-label="歌词时间">
+          <input data-index="${index}" data-field="text" value="${safeText}" aria-label="歌词文本">
+        `;
+        lyricGrid.appendChild(item);
+      });
+    }
+
+    function syncLyricsFromRows() {
+      lyricRows.sort((a, b) => a.time - b.time);
+      lyricsInput.value = rowsToLrc(lyricRows);
+      renderLyricGrid();
+      renderFrame(audio.currentTime || 0);
+    }
+
+    function updateLrcFromRowsWithoutRerender() {
+      lyricsInput.value = rowsToLrc(lyricRows);
+      renderFrame(audio.currentTime || 0);
+    }
+
+    function splitPlainLyricsToRows(autoTime = false) {
+      const lines = plainLyricsInput.value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const duration = Number.isFinite(audio.duration) && audio.duration > 3 ? audio.duration : Math.max(32, lines.length * 4);
+      const step = lines.length > 1 ? duration / lines.length : 0;
+      lyricRows = lines.map((text, index) => ({
+        time: autoTime ? index * step : (lyricRows[index]?.time ?? index * 4),
+        text
+      }));
+      syncLyricsFromRows();
+    }
+
+    function parseLyrics(raw, duration) {
+      const rows = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const parsed = [];
+      const stamp = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s*(.*)/;
+
+      for (const row of rows) {
+        const match = row.match(stamp);
+        if (match) {
+          const mins = Number(match[1]);
+          const secs = Number(match[2]);
+          const frac = match[3] ? Number("0." + match[3].padEnd(3, "0")) : 0;
+          parsed.push({ time: mins * 60 + secs + frac, text: match[4] || " " });
+        }
+      }
+
+      if (parsed.length) {
+        return parsed.sort((a, b) => a.time - b.time);
+      }
+
+      const cleanRows = rows.length ? rows : ["把歌词贴在这里"];
+      const usableDuration = Number.isFinite(duration) && duration > 3 ? duration : cleanRows.length * 4;
+      const step = Math.max(2.8, usableDuration / Math.max(cleanRows.length, 1));
+      return cleanRows.map((text, index) => ({ time: index * step, text }));
+    }
+
+    function activeLyricIndex(lines, t) {
+      let index = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].time <= t) index = i;
+      }
+      return index;
+    }
+
+    function lineProgress(lines, active, t) {
+      const start = lines[active]?.time ?? 0;
+      const end = lines[active + 1]?.time ?? start + 4;
+      const span = Math.max(.9, end - start);
+      const raw = Math.min(1, Math.max(0, (t - start) / span));
+      return raw * raw * (3 - 2 * raw);
+    }
+
+    function formatTime(seconds) {
+      const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+      const mins = Math.floor(safe / 60);
+      const secs = Math.floor(safe % 60);
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function wrappedText(text, maxWidth, font, maxLines = 2) {
+      ctx.font = font;
+      const chars = [...text];
+      const lines = [];
+      let line = "";
+      for (const ch of chars) {
+        const next = line + ch;
+        if (ctx.measureText(next).width > maxWidth && line) {
+          lines.push(line);
+          line = ch;
+        } else {
+          line = next;
+        }
+      }
+      if (line) lines.push(line);
+      return lines.slice(0, maxLines);
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function containImage(img, x, y, w, h) {
+      const scale = Math.max(w / img.width, h / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    function drawGeneratedCover(targetCtx, size) {
+      const palette = scenePalettes[sceneTone.value] || scenePalettes.alley;
+      const title = titleInput.value.trim() || "少女和小和尚";
+
+      const sky = targetCtx.createLinearGradient(0, 0, 0, size);
+      sky.addColorStop(0, palette.sky[1]);
+      sky.addColorStop(.66, palette.sky[0]);
+      sky.addColorStop(1, "#1a211d");
+      targetCtx.fillStyle = sky;
+      targetCtx.fillRect(0, 0, size, size);
+
+      targetCtx.fillStyle = "rgba(245, 235, 205, .82)";
+      targetCtx.beginPath();
+      targetCtx.arc(size * .76, size * .18, size * .075, 0, Math.PI * 2);
+      targetCtx.fill();
+
+      targetCtx.fillStyle = "rgba(22, 34, 33, .88)";
+      targetCtx.beginPath();
+      targetCtx.moveTo(0, size * .46);
+      targetCtx.quadraticCurveTo(size * .25, size * .29, size * .48, size * .46);
+      targetCtx.quadraticCurveTo(size * .70, size * .60, size, size * .40);
+      targetCtx.lineTo(size, size);
+      targetCtx.lineTo(0, size);
+      targetCtx.fill();
+
+      targetCtx.fillStyle = "rgba(45, 62, 55, .95)";
+      targetCtx.fillRect(size * .17, size * .40, size * .66, size * .15);
+      targetCtx.fillStyle = "rgba(17, 25, 23, .96)";
+      targetCtx.beginPath();
+      targetCtx.moveTo(size * .12, size * .40);
+      targetCtx.lineTo(size * .50, size * .25);
+      targetCtx.lineTo(size * .88, size * .40);
+      targetCtx.closePath();
+      targetCtx.fill();
+      targetCtx.fillStyle = "rgba(228, 184, 95, .85)";
+      targetCtx.fillRect(size * .47, size * .43, size * .06, size * .12);
+
+      targetCtx.fillStyle = "rgba(50, 57, 54, .92)";
+      targetCtx.beginPath();
+      targetCtx.moveTo(size * .20, size);
+      targetCtx.lineTo(size * .43, size * .56);
+      targetCtx.lineTo(size * .57, size * .56);
+      targetCtx.lineTo(size * .80, size);
+      targetCtx.closePath();
+      targetCtx.fill();
+
+      for (let i = 0; i < 9; i++) {
+        const x = size * (.14 + i * .09);
+        targetCtx.strokeStyle = `rgba(236, 216, 170, ${.18 + (i % 2) * .12})`;
+        targetCtx.lineWidth = size * .01;
+        targetCtx.beginPath();
+        targetCtx.moveTo(x, size * .62);
+        targetCtx.lineTo(x + size * .03, size);
+        targetCtx.stroke();
+      }
+
+      targetCtx.fillStyle = palette.warm;
+      for (let i = 0; i < 5; i++) {
+        const x = size * (.18 + i * .15);
+        const y = size * (.32 + (i % 2) * .05);
+        targetCtx.beginPath();
+        targetCtx.ellipse(x, y, size * .028, size * .042, 0, 0, Math.PI * 2);
+        targetCtx.fill();
+        targetCtx.strokeStyle = "rgba(255, 218, 142, .45)";
+        targetCtx.beginPath();
+        targetCtx.moveTo(x, y - size * .042);
+        targetCtx.lineTo(x, y - size * .12);
+        targetCtx.stroke();
+      }
+
+      targetCtx.globalAlpha = .15;
+      targetCtx.strokeStyle = "#f6ead5";
+      for (let y = 0; y < size; y += 18) {
+        targetCtx.beginPath();
+        targetCtx.moveTo(0, y);
+        targetCtx.lineTo(size, y + Math.sin(y * .05) * 8);
+        targetCtx.stroke();
+      }
+      targetCtx.globalAlpha = 1;
+
+      targetCtx.fillStyle = "rgba(246, 234, 213, .92)";
+      targetCtx.font = lyricFont(900, Math.floor(size * .07));
+      targetCtx.textAlign = "center";
+      targetCtx.fillText(title, size / 2, size * .82);
+    }
+
+    function makeGeneratedCover() {
+      const c = document.createElement("canvas");
+      c.width = 1080;
+      c.height = 1080;
+      drawGeneratedCover(c.getContext("2d"), 1080);
+      return c;
+    }
+
+    function drawSceneBackground(poster, t) {
+      const palette = scenePalettes[sceneTone.value] || scenePalettes.alley;
+      const brightScene = ["morning", "peach", "river", "field", "neon"].includes(sceneTone.value);
+      const slow = .75;
+      const drift = Math.sin(t * .08 * slow) * 22;
+
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, palette.sky[0]);
+      bg.addColorStop(.52, palette.sky[1]);
+      bg.addColorStop(1, palette.sky[2]);
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      ctx.globalAlpha = .18;
+      ctx.filter = "blur(26px)";
+      containImage(poster, -120 + drift, -80, W + 240, H + 130);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(drift * .45, 0);
+      ctx.fillStyle = brightScene ? "rgba(82, 119, 98, .42)" : "rgba(20, 31, 29, .65)";
+      ctx.beginPath();
+      ctx.moveTo(-80, 590);
+      ctx.quadraticCurveTo(210, 410, 420, 570);
+      ctx.quadraticCurveTo(620, 710, 1120, 500);
+      ctx.lineTo(1120, H);
+      ctx.lineTo(-80, H);
+      ctx.fill();
+
+      ctx.fillStyle = brightScene ? "rgba(255, 238, 173, .92)" : "rgba(238, 209, 142, .82)";
+      ctx.beginPath();
+      ctx.arc(820, 210, 52, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = brightScene ? "rgba(98, 137, 112, .76)" : "rgba(49, 68, 61, .90)";
+      ctx.fillRect(348, 420, 384, 96);
+      ctx.fillStyle = brightScene ? "rgba(62, 91, 78, .86)" : "rgba(16, 25, 23, .94)";
+      ctx.beginPath();
+      ctx.moveTo(300, 420);
+      ctx.lineTo(540, 290);
+      ctx.lineTo(780, 420);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      for (let i = 0; i < 24; i++) {
+        const x = (i * 83 + Math.sin(t * .16 + i) * 18) % W;
+        const y = (i * 137 + t * (8 + i % 3)) % H;
+        ctx.fillStyle = i % 4 === 0 ? "rgba(232, 199, 106, .34)" : "rgba(246, 234, 213, .18)";
+        ctx.beginPath();
+        ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.save();
+      const warmGlow = ctx.createRadialGradient(W * .20, H * .18, 30, W * .20, H * .18, W * .90);
+      warmGlow.addColorStop(0, brightScene ? "rgba(255, 238, 190, .24)" : "rgba(232, 199, 106, .10)");
+      warmGlow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = warmGlow;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+      ctx.fillStyle = palette.shadow;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.globalAlpha = .06;
+      ctx.strokeStyle = palette.paper;
+      for (let y = 0; y < H; y += 26) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + Math.sin(y * .03 + t * .05) * 5);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawCover(poster, x, y, size, t) {
+      const breathe = 1 + Math.sin(t * .55) * .006;
+      const drawSize = size * breathe;
+      const dx = x + (size - drawSize) / 2;
+      const dy = y + (size - drawSize) / 2;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.35)";
+      ctx.shadowBlur = 34;
+      ctx.shadowOffsetY = 18;
+      if (coverMode.value === "disc") {
+        ctx.translate(x + size / 2, y + size / 2);
+        ctx.rotate(t * .34);
+        ctx.beginPath();
+        ctx.arc(0, 0, drawSize / 2, 0, Math.PI * 2);
+        ctx.clip();
+        containImage(poster, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+        ctx.fillStyle = "rgba(255,255,255,.12)";
+        ctx.beginPath();
+        ctx.arc(0, 0, drawSize * .40, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#111414";
+        ctx.beginPath();
+        ctx.arc(0, 0, drawSize * .10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(246,234,213,.70)";
+        ctx.lineWidth = 7;
+        ctx.stroke();
+      } else {
+        roundedRect(dx, dy, drawSize, drawSize, 28);
+        ctx.clip();
+        containImage(poster, dx, dy, drawSize, drawSize);
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(246,234,213,.52)";
+      ctx.lineWidth = 3;
+      if (coverMode.value === "disc") {
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y + size / 2, size / 2 + 10, 0, Math.PI * 2);
+      } else {
+        roundedRect(x, y, size, size, 28);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawSongMeta(x, y, align = "center", compact = false, tone = "light") {
+      const title = titleInput.value.trim() || "少女和小和尚";
+      const artist = artistInput.value.trim() || "汤大侠 / Suno";
+      const colors = lyricColors(tone);
+      const titleColor = colors.main;
+      const artistColor = colors.meta;
+      ctx.textAlign = align;
+      ctx.fillStyle = titleColor;
+      ctx.font = compact ? lyricFont(900, 46) : lyricFont(900, 58);
+      ctx.fillText(title, x, y);
+      ctx.fillStyle = artistColor;
+      ctx.font = compact ? lyricFont(500, 30) : lyricFont(500, 36);
+      ctx.fillText(artist, x, y + (compact ? 50 : 62));
+    }
+
+    function isChorus(lines, active) {
+      return active % 4 === 3 || active % 4 === 0;
+    }
+
+    function drawLyricBlock(x, y, maxWidth, lines, active, t, mode) {
+      const p = lineProgress(lines, active, t);
+      const chorus = isChorus(lines, active);
+      const align = mode === "poster" ? "center" : "left";
+      const cardMode = mode === "card";
+      const currentSize = mode === "poster" ? (chorus ? 92 : 84) : (chorus ? 72 : 64);
+      const sideSize = mode === "poster" ? 40 : 36;
+      const farSize = mode === "poster" ? 34 : 30;
+      const wheel = mode === "poster"
+        ? [
+          { offset: -1, y: 8, size: farSize, alpha: .22, weight: 500, maxLines: 1 },
+          { offset: 0, y: 164 - p * 12, size: currentSize, alpha: Math.min(1, .48 + p * 1.1), weight: 900, maxLines: 3 },
+          { offset: 1, y: 252 - p * 16, size: sideSize, alpha: .52, weight: 600, maxLines: 1 },
+          { offset: 2, y: 324 - p * 14, size: farSize, alpha: .38, weight: 500, maxLines: 1 },
+          { offset: 3, y: 386 - p * 12, size: farSize, alpha: .28, weight: 500, maxLines: 1 },
+          { offset: 4, y: 446 - p * 10, size: farSize, alpha: .20, weight: 500, maxLines: 1 },
+          { offset: 5, y: 504 - p * 8, size: farSize, alpha: .14, weight: 500, maxLines: 1 }
+        ]
+        : [
+          { offset: -1, y: -92, size: farSize, alpha: .26, weight: 500, maxLines: 1 },
+          { offset: 0, y: 38 - p * 12, size: currentSize, alpha: Math.min(1, .48 + p * 1.1), weight: 900, maxLines: 2 },
+          { offset: 1, y: 108 - p * 16, size: sideSize, alpha: .50, weight: 600, maxLines: 1 },
+          { offset: 2, y: 172 - p * 12, size: farSize, alpha: .30, weight: 500, maxLines: 1 }
+        ];
+
+      for (const item of wheel) {
+        const lyric = lines[active + item.offset]?.text;
+        if (!lyric) continue;
+        const isCurrent = item.offset === 0;
+        const glow = false;
+        ctx.save();
+        ctx.textAlign = align;
+        ctx.globalAlpha = item.alpha;
+        const colors = lyricColors(cardMode ? "dark" : "light");
+        ctx.fillStyle = isCurrent ? colors.main : colors.sub;
+        ctx.font = lyricFont(item.weight, item.size);
+        if (glow) {
+          ctx.shadowColor = colors.glow;
+          ctx.shadowBlur = cardMode ? 12 : 24;
+        }
+        const textLines = wrappedText(lyric, maxWidth, ctx.font, item.maxLines);
+        textLines.forEach((line, i) => {
+          ctx.fillText(line, x, y + item.y + i * (item.size + 12));
+        });
+        ctx.restore();
+      }
+    }
+
+    function drawProgressControls(t, x, y, w, tone = "light") {
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 208;
+      const pct = Math.min(1, Math.max(0, t / duration));
+      const pulse = 1 + Math.sin(t * 1.8) * .04;
+      const colors = lyricColors(tone);
+      const trackColor = tone === "dark" ? "rgba(24,35,31,.22)" : "rgba(246,234,213,.22)";
+      const fillColor = colors.accent;
+      const textColor = colors.meta;
+      const buttonFill = tone === "dark" ? "#1c2925" : colors.main;
+      const buttonIcon = tone === "dark" ? "#f8f0df" : "#101414";
+      const waveColor = tone === "dark" ? "rgba(35, 58, 51, .52)" : colors.meta;
+
+      ctx.fillStyle = trackColor;
+      roundedRect(x, y, w, 13, 7);
+      ctx.fill();
+      ctx.fillStyle = fillColor;
+      roundedRect(x, y, Math.max(13, w * pct), 13, 7);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + w * pct, y + 6.5, 21, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = textColor;
+      ctx.font = lyricFont(500, 32);
+      ctx.textAlign = "left";
+      ctx.fillText(formatTime(t), x, y + 62);
+      ctx.textAlign = "right";
+      ctx.fillText(formatTime(duration), x + w, y + 62);
+
+      const cx = W / 2;
+      const cy = y + 148;
+      ctx.fillStyle = textColor;
+      ctx.font = "500 54px Segoe UI Symbol, Microsoft YaHei, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("⏮", cx - 205, cy);
+      ctx.fillText("⏭", cx + 205, cy);
+
+      ctx.save();
+      ctx.translate(cx, cy - 6);
+      ctx.scale(pulse, pulse);
+      ctx.fillStyle = buttonFill;
+      ctx.beginPath();
+      ctx.arc(0, 0, 56, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = buttonIcon;
+      ctx.font = "800 44px Segoe UI Symbol, Microsoft YaHei, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(audio.paused ? "▶" : "❚❚", 2, 2);
+      ctx.restore();
+
+      drawBottomAnimation(t, x, y + 112, w, waveColor, fillColor);
+    }
+
+    function drawBottomAnimation(t, x, y, w, lineColor, accentColor) {
+      const mode = bottomAnimSelect.value;
+      ctx.save();
+
+      if (mode === "notes") {
+        const notes = ["♪", "♫", "♩", "♬", "♪", "♫"];
+        ctx.textAlign = "center";
+        ctx.font = "700 34px Segoe UI Symbol, Microsoft YaHei, sans-serif";
+        for (let i = 0; i < notes.length; i++) {
+          const px = x + 52 + i * ((w - 104) / (notes.length - 1));
+          const py = y + Math.sin(t * 1.6 + i * .9) * 16;
+          ctx.globalAlpha = .34 + (i % 3) * .13;
+          ctx.fillStyle = i % 2 ? accentColor : lineColor;
+          ctx.fillText(notes[i], px, py + 12);
+        }
+      } else if (mode === "particles") {
+        ctx.fillStyle = lineColor;
+        for (let i = 0; i < 26; i++) {
+          const px = x + ((i * 47 + t * 32) % w);
+          const py = y + Math.sin(t * .9 + i) * 18;
+          ctx.globalAlpha = .18 + (i % 4) * .08;
+          ctx.beginPath();
+          ctx.arc(px, py, 3 + (i % 3), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (mode === "mountain") {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 5;
+        ctx.globalAlpha = .62;
+        ctx.beginPath();
+        for (let i = 0; i <= 64; i++) {
+          const px = x + (w * i) / 64;
+          const py = y + Math.sin(i * .34 + t * .7) * 12 + Math.sin(i * .13 - t * .4) * 18;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = .28;
+        ctx.beginPath();
+        for (let i = 0; i <= 64; i++) {
+          const px = x + (w * i) / 64;
+          const py = y + 26 + Math.sin(i * .28 - t * .5) * 10;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      } else if (mode === "lanterns") {
+        for (let i = 0; i < 8; i++) {
+          const px = x + 45 + i * ((w - 90) / 7);
+          const py = y + Math.sin(t * .8 + i) * 8;
+          const glow = .32 + Math.sin(t * 1.2 + i * .7) * .14;
+          ctx.globalAlpha = glow;
+          ctx.fillStyle = accentColor;
+          ctx.beginPath();
+          ctx.ellipse(px, py, 10, 15, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = lineColor;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px, py - 18);
+          ctx.lineTo(px, py - 28);
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 7;
+        for (let i = 0; i < 36; i++) {
+          const bx = x + 20 + i * ((w - 40) / 35);
+          const bh = 20 + Math.sin(t * 1.4 + i * .7) * 14 + (i % 5) * 3;
+          ctx.beginPath();
+          ctx.moveTo(bx, y - bh / 2);
+          ctx.lineTo(bx, y + bh / 2);
+          ctx.stroke();
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function drawMusicLayout(poster, t, lines, active) {
+      drawSceneBackground(poster, t);
+      drawCover(poster, 210, 138, 660, t);
+      drawSongMeta(W / 2, 940, "center");
+      drawLyricBlock(150, 1150, 780, lines, active, t, "music");
+      drawProgressControls(t, 135, 1595, 810);
+    }
+
+    function drawPosterLayout(poster, t, lines, active) {
+      drawSceneBackground(poster, t);
+      ctx.save();
+      ctx.globalAlpha = .16;
+      containImage(poster, -60 + Math.sin(t * .07) * 18, -20, W + 120, H + 80);
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(12, 17, 16, .28)";
+      roundedRect(86, 178, 908, 1210, 34);
+      ctx.fill();
+      drawLyricBlock(W / 2, 520, 840, lines, active, t, "poster");
+
+      const colors = lyricColors("light");
+      ctx.textAlign = "left";
+      ctx.fillStyle = colors.main;
+      ctx.font = lyricFont(900, 44);
+      ctx.fillText(`《${titleInput.value.trim() || "少女和小和尚"}》`, 104, 1474);
+      ctx.fillStyle = colors.meta;
+      ctx.font = lyricFont(500, 32);
+      ctx.fillText(artistInput.value.trim() || "汤大侠 / Suno", 104, 1530);
+      drawProgressControls(t, 96, 1610, 888);
+    }
+
+    function drawCardLayout(poster, t, lines, active) {
+      drawSceneBackground(poster, t);
+      drawCover(poster, 270, 120, 540, t);
+
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 248, 232, .62)";
+      ctx.shadowColor = "rgba(0, 0, 0, .16)";
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 12;
+      roundedRect(120, 720, 840, 850, 34);
+      ctx.fill();
+      ctx.shadowColor = "rgba(0, 0, 0, 0)";
+      ctx.strokeStyle = "rgba(255, 255, 255, .46)";
+      ctx.lineWidth = 3;
+      roundedRect(120, 720, 840, 850, 34);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(44, 60, 54, .18)";
+      ctx.lineWidth = 2;
+      roundedRect(134, 734, 812, 822, 28);
+      ctx.stroke();
+      ctx.restore();
+
+      drawSongMeta(180, 830, "left", true, "dark");
+
+      ctx.save();
+      drawLyricBlock(180, 1010, 720, lines, active, t, "card");
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = .96;
+      drawProgressControls(t, 165, 1360, 750, "dark");
+      ctx.restore();
+    }
+
+    function renderFrame(timeOverride) {
+      const poster = coverImage || generatedCover || makeGeneratedCover();
+      const t = typeof timeOverride === "number" ? timeOverride : audio.currentTime || performance.now() / 1000;
+      const lines = parseLyrics(lyricsInput.value, audio.duration);
+      const active = activeLyricIndex(lines, t);
+
+      if (visualStyle.value === "poster") {
+        drawPosterLayout(poster, t, lines, active);
+      } else if (visualStyle.value === "card") {
+        drawCardLayout(poster, t, lines, active);
+      } else {
+        drawMusicLayout(poster, t, lines, active);
+      }
+    }
+
+    function loop() {
+      renderFrame();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function stopLoop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
+    function recorderMimeType() {
+      const types = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm"
+      ];
+      return types.find(type => MediaRecorder.isTypeSupported(type)) || "";
+    }
+
+    function startPreview() {
+      stopLoop();
+      loop();
+      if (audio.src) {
+        audio.currentTime = 0;
+        audio.play();
+      }
+      setStatus(audio.src ? "正在预览播放。" : "正在预览画面；上传音频后可同步播放。");
+    }
+
+    async function ensureAudioGraph() {
+      if (!audio.src) return null;
+      if (!audioContext) {
+        audioContext = new AudioContext();
+        audioDestination = audioContext.createMediaStreamDestination();
+        audioSourceNode = audioContext.createMediaElementSource(audio);
+        audioSourceNode.connect(audioContext.destination);
+        audioSourceNode.connect(audioDestination);
+      }
+      if (audioContext.state === "suspended") await audioContext.resume();
+      return audioDestination.stream;
+    }
+
+    function finishRecording() {
+      audio.pause();
+      stopLoop();
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    }
+
+    async function recordVideo() {
+      if (recorder && recorder.state === "recording") {
+        finishRecording();
+        return;
+      }
+
+      if (!audio.src) {
+        setStatus("请先上传音频再录制。");
+        return;
+      }
+
+      try {
+        downloadLink.style.display = "none";
+        recordedChunks = [];
+        const canvasStream = canvas.captureStream(30);
+        const audioStream = await ensureAudioGraph();
+        for (const track of audioStream.getAudioTracks()) {
+          canvasStream.addTrack(track);
+        }
+
+        const mimeType = recorderMimeType();
+        recorder = mimeType ? new MediaRecorder(canvasStream, { mimeType }) : new MediaRecorder(canvasStream);
+        recorder.ondataavailable = event => {
+          if (event.data.size > 0) recordedChunks.push(event.data);
+        };
+        recorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+          downloadLink.href = url;
+          downloadLink.download = `tang-ai-note-player-${stamp}.webm`;
+          downloadLink.textContent = `下载 ${downloadLink.download}`;
+          downloadLink.style.display = "inline-block";
+          recordBtn.textContent = "录制导出";
+          setStatus("录制完成，已触发下载；如果没有自动下载，请点击下面的下载链接。");
+          downloadLink.click();
+        };
+
+        stopLoop();
+        loop();
+        audio.currentTime = 0;
+        await audio.play();
+        recorder.start(1000);
+        recordBtn.textContent = "结束录制";
+        setStatus("正在录制；歌曲播完会自动下载，也可以再次点击结束录制。");
+        audio.onended = finishRecording;
+      } catch (error) {
+        recordBtn.textContent = "录制导出";
+        setStatus(`录制启动失败：${error.message}`);
+      }
+    }
+
+    document.getElementById("previewBtn").addEventListener("click", startPreview);
+
+    document.getElementById("stopBtn").addEventListener("click", () => {
+      audio.pause();
+      stopLoop();
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      recordBtn.textContent = "录制导出";
+      setStatus("已停止。");
+    });
+
+    recordBtn.addEventListener("click", recordVideo);
+
+    document.getElementById("splitLyricsBtn").addEventListener("click", () => {
+      splitPlainLyricsToRows(false);
+      setStatus("已把普通歌词拆成时间格。");
+    });
+
+    document.getElementById("autoTimeBtn").addEventListener("click", () => {
+      splitPlainLyricsToRows(true);
+      setStatus(audio.src ? "已按音频时长平均铺好时间。" : "已按示例时长平均铺好时间；上传音频后可重新铺一次。");
+    });
+
+    lyricGrid.addEventListener("input", event => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const index = Number(target.dataset.index);
+      const field = target.dataset.field;
+      if (!lyricRows[index]) return;
+      if (field === "time") {
+        lyricRows[index].time = parseTimeInput(target.value);
+      } else if (field === "text") {
+        lyricRows[index].text = target.value;
+      }
+      updateLrcFromRowsWithoutRerender();
+    });
+
+    lyricGrid.addEventListener("change", () => {
+      syncLyricsFromRows();
+    });
+
+    audioFile.addEventListener("change", () => {
+      const file = audioFile.files[0];
+      if (!file) return;
+      audio.src = URL.createObjectURL(file);
+      if (!titleInput.value.trim()) {
+        titleInput.value = file.name.replace(/\.[^.]+$/, "");
+      }
+      setStatus("音频已载入。");
+    });
+
+    coverFile.addEventListener("change", async () => {
+      const file = coverFile.files[0];
+      if (!file) return;
+      coverImage = await loadImageFromFile(file);
+      renderFrame(0);
+      setStatus("封面图已载入。");
+    });
+
+    lyricsInput.addEventListener("change", () => {
+      lyricRows = rowsFromLrc(lyricsInput.value);
+      plainLyricsInput.value = lyricRows.map(row => row.text).join("\n");
+      renderLyricGrid();
+      renderFrame(audio.currentTime || 0);
+    });
+
+    [
+      titleInput,
+      artistInput,
+      visualStyle,
+      coverMode,
+      previewSizeSelect,
+      fontSelect,
+      colorSelect,
+      bottomAnimSelect,
+      sceneTone
+    ].forEach(el => {
+      el.addEventListener("input", () => {
+        updatePreviewSize();
+        renderFrame(audio.currentTime || 0);
+      });
+      el.addEventListener("change", () => {
+        updatePreviewSize();
+        renderFrame(audio.currentTime || 0);
+      });
+    });
+
+    generatedCover = makeGeneratedCover();
+    lyricRows = rowsFromLrc(lyricsInput.value);
+    renderLyricGrid();
+    updatePreviewSize();
+    renderFrame(0);
+  </script>
+</body>
+</html>
